@@ -3,12 +3,12 @@ import time
 import csv
 import pandas as pd
 import numpy as np
-
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
-from sklearn.model_selection import train_test_split
+import os
 
+from sklearn.model_selection import train_test_split
 import zipfile
 from io import StringIO
 from sklearn.model_selection import train_test_split
@@ -150,6 +150,11 @@ def normalizeTreatedWells(wellControl, wellTreatment):
 
 def run():
     print('start')
+
+    cur_dir = os.getcwd()
+    print("currentDir[" +str(cur_dir) +"]")
+    os.path.isdir(cur_dir)
+
     # read treatments formulas
     rawsChemicalAnnotationsFile = readChemicalAnnotationsFile()
     # parse  all treatments formulas
@@ -166,6 +171,8 @@ def run():
     # todo: calculate statistics about formulas (hystogram of used muleculas):
     # todo: how many treatments use the atom - to be used for better random generation
 
+    #todo: read plates from disk dirs
+
     # read X plates avg well data (10)
     mean_well_profilesFileDF = readPlateData(mean_well_profilesFile)
 
@@ -178,6 +185,8 @@ def run():
     # print(Metadata_pert_mfc_id)
     treatmentsOfCurrentPlate = list(map(lambda id: parsedChemicalAnnotationSmiles_usedAtoms_Hash[id], Metadata_pert_mfc_id))
     treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
+
+    #todo: add control wells with 0 treatment to the data
 
     # split train and test (10 cross validation)
     # Split a whole plate to be a validation
@@ -218,7 +227,13 @@ def run():
               )
     print("fit took[" + str(time.time() - fitBeginTime) + "]")
     # calculate RMSE per validation split
-    print('end')
 
+    #build a smart random treatment
+    #calculate RMSE for the random treatment
+    #compare RMSEs
+
+    print('end')
     
+
+
 run()
