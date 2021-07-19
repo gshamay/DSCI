@@ -32,15 +32,18 @@ atomsPeriodicTable = ['c', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
 
 atomsPeriodicTableSorted = sorted(atomsPeriodicTable, key=len, reverse=True)
 atomsCountMax = [0 for i in range(len(atomsPeriodicTableSorted))]
-usedAtomsIndexesHash = {}
+usedAtomsIndexesHash = {}  # look like {8: 3087, 104: 29879, 107: 30351, 108: 28458, 109: 29389, 112: 8421, 105: 19802, 110: 5751, 97: 1828, 11: 812, 116: 36, 24: 691, 111: 37, 38: 1}
+
 chemical_annotationsFile = './data/chemical_annotations.csv'
 mean_well_profilesFile = './data/mean_well_profiles.csv'
-#C:/bgu/DSCI/DSCI
+# C:/bgu/DSCI/DSCI
 
 
 def dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes):
+    # parsedChemicalAnnotationSmiles_AllAtoms looks like
+    # [['BRD-A56675431-001-04-0', [0, 0, 0, ... 5, 3, 4, 0, 0, 3, 0, 0, 0, 0, 0, 0]],[...]]]
+    # usedAtomsIndexes looks like : [8, 104, 107, 108, 109, 112, 105, 110, 97, 11, 116, 24, 111, 38]
     usedAtoms = list(map(lambda i: atomsPeriodicTableSorted[i], usedAtomsIndexes))
-
     parsedChemicalAnnotationSmiles_usedAtoms_Hash = {}
     parsedChemicalAnnotationSmiles_usedAtoms = []
     for l in parsedChemicalAnnotationSmiles_AllAtoms:
@@ -55,11 +58,16 @@ def dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes):
 def parseChemicalAnnotationsFileSmiles(rawsChemicalAnnotationsFile):
     newRaws = []
     for raw in rawsChemicalAnnotationsFile:
+        # each raw looks like: treatmentId , Smile
+        # ['BRD-A56675431-001-04-0', 'NS(=O)(=O)c1cc2c(NC(CSCC=C)NS2(=O)=O)cc1Cl']
         atomsCount = parseSMILE(raw[1])
         newRaw = [raw[0]]
         newRaw.append(atomsCount)
         newRaws.append(newRaw)
-    return newRaws, list(usedAtomsIndexesHash.values())
+        # newRaw looks like that:
+        # ['BRD-A56675431-001-04-0', [0, 0, 0, ... 5, 3, 4, 0, 0, 3, 0, 0, 0, 0, 0, 0]]
+        # usedAtomsIndexesHash will contain all the indexes that were in use by all treatments in the plate
+    return newRaws, list(usedAtomsIndexesHash.keys())
 
 
 def readChemicalAnnotationsFile():
@@ -90,8 +98,10 @@ def parseSMILE(smile):
     atomsCountMax = np.maximum(atomsCountMax, atomsCount).tolist()
     usedAtoms, usedAtomsIndexes = getUsedAtoms(atomsPeriodicTableSorted, atomsCount)
     for usedIndex in usedAtomsIndexes:
-        usedAtomsIndexesHash[usedIndex] = usedIndex
-
+        if (usedIndex in usedAtomsIndexesHash):
+            usedAtomsIndexesHash[usedIndex] = usedAtomsIndexesHash[usedIndex] + 1
+        else:
+            usedAtomsIndexesHash[usedIndex] = 1
     # print(smile)
     # print(atomsCount)
     # print(atomsCountMax)
@@ -145,14 +155,14 @@ def normalizeTreatedWells(wellControl, wellTreatment):
                                                   x[wellsDataStartColumnNumber:] - avgWellControlNumericData, axis=1)
     # set the treatment formula ID to the normalized treatments
     Metadata_pert_mfc_id = wellTreatment.loc[:, 'Metadata_pert_mfc_id']
-    return normalizedWellTreatment,Metadata_pert_mfc_id
+    return normalizedWellTreatment, Metadata_pert_mfc_id
 
 
 def run():
     print('start')
 
     cur_dir = os.getcwd()
-    print("currentDir[" +str(cur_dir) +"]")
+    print("currentDir[" + str(cur_dir) + "]")
     os.path.isdir(cur_dir)
 
     # read treatments formulas
@@ -165,13 +175,23 @@ def run():
     parsedChemicalAnnotationSmiles_usedAtoms, usedAtoms, usedAtomsCountMax, parsedChemicalAnnotationSmiles_usedAtoms_Hash = \
         dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes)
 
-    print("usedAtoms[" + str(usedAtoms) + "]")
-    print("usedAtomsCountMax[" + str(usedAtomsCountMax) + "]")
-    print("total Treatments[" + str(len(parsedChemicalAnnotationSmiles_usedAtoms)) + "]")
-    # todo: calculate statistics about formulas (hystogram of used muleculas):
-    # todo: how many treatments use the atom - to be used for better random generation
+    numOfTreatments = len(parsedChemicalAnnotationSmiles_usedAtoms_Hash)
+    print("numOfTreatments[" + str(numOfTreatments) + "]")  # 30616
 
-    #todo: read plates from disk dirs
+    print("usedAtoms[" + str(usedAtoms) + "]")
+    # ['Cl', 'c', 'C', 'N', 'O', 'S', 'H', 'F', 'Cn', 'Sc', 'I', 'Br', 'P', 'Sn']
+
+    print("numOfTreatmentsUsedTheAtom[" + str(usedAtomsIndexesHash.values()) + "]")
+    # dict_values([3087, 29879, 30351, 28458, 29389, 8421, 19802, 5751, 1828, 812, 36, 691, 37, 1])
+
+    print("usedAtomsCountMax[" + str(usedAtomsCountMax) + "]")
+    # [5, 42, 62, 11, 19, 4, 24, 9, 2, 3, 6, 4, 2, 1]
+
+    print("total Treatments[" + str(len(parsedChemicalAnnotationSmiles_usedAtoms)) + "]")  # '30616'
+
+    # todo: calculate statistics about formulas (hystogram of used muleculas):
+
+    # todo: read plates from disk dirs
 
     # read X plates avg well data (10)
     mean_well_profilesFileDF = readPlateData(mean_well_profilesFile)
@@ -183,21 +203,22 @@ def run():
     normalizedWellTreatment, Metadata_pert_mfc_id = normalizeTreatedWells(wellControl, wellTreatment)
     # print(normalizedWellTreatment)
     # print(Metadata_pert_mfc_id)
-    treatmentsOfCurrentPlate = list(map(lambda id: parsedChemicalAnnotationSmiles_usedAtoms_Hash[id], Metadata_pert_mfc_id))
+    treatmentsOfCurrentPlate = list(
+        map(lambda id: parsedChemicalAnnotationSmiles_usedAtoms_Hash[id], Metadata_pert_mfc_id))
     treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
 
-    #todo: add control wells with 0 treatment to the data
+    # todo: add control wells with 0 treatment to the data
 
     # split train and test (10 cross validation)
     # Split a whole plate to be a validation
     # build model (wells to formula)
 
-    #build ANN structure
+    # build ANN structure
     input_dim = len(normalizedWellTreatment.columns)
-    layers = [(int)(input_dim/2),len(usedAtoms)]
+    layers = [(int)(input_dim / 2), len(usedAtoms)]
     model = Sequential()
     model.add(Dense(layers[0], input_dim=input_dim, activation='sigmoid'))
-    model.add(Dense(layers[1], activation='sigmoid'))#relu
+    model.add(Dense(layers[1], activation='sigmoid'))  # relu
     METRICS = [
         # tf.keras.metrics.TruePositives(name='tp'),
         # tf.keras.metrics.FalsePositives(name='fp'),
@@ -228,12 +249,11 @@ def run():
     print("fit took[" + str(time.time() - fitBeginTime) + "]")
     # calculate RMSE per validation split
 
-    #build a smart random treatment
-    #calculate RMSE for the random treatment
-    #compare RMSEs
+    # build a smart random treatment
+    # calculate RMSE for the random treatment
+    # compare RMSEs
 
     print('end')
-    
 
 
 run()
