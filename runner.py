@@ -7,6 +7,7 @@ import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
 import os
+import random
 
 from sklearn.model_selection import train_test_split
 import zipfile
@@ -34,9 +35,10 @@ atomsPeriodicTableSorted = sorted(atomsPeriodicTable, key=len, reverse=True)
 atomsCountMax = [0 for i in range(len(atomsPeriodicTableSorted))]
 usedAtomsIndexesHash = {}  # look like {8: 3087, 104: 29879, 107: 30351, 108: 28458, 109: 29389, 112: 8421, 105: 19802, 110: 5751, 97: 1828, 11: 812, 116: 36, 24: 691, 111: 37, 38: 1}
 
-chemical_annotationsFile = './data/chemical_annotations.csv'
-mean_well_profilesFile = './data/mean_well_profiles.csv'
-# C:/bgu/DSCI/DSCI
+startDir = 'C:/bgu/DSCI/DSCI'
+chemical_annotationsFile = '/data/chemical_annotations.csv'
+mean_well_profilesFile = '/data/mean_well_profiles.csv'
+profilesDir = startDir + '/data/profiles.dir'
 
 
 def dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes):
@@ -75,7 +77,7 @@ def readChemicalAnnotationsFile():
     #   there are erros in the data ,
     #   the chemical_annotations file contain more values per row then expected in some rows --> can't use numpy.genfromtxt or pd.read_csv
     raws = []
-    with open(chemical_annotationsFile, 'r') as file:
+    with open(startDir + chemical_annotationsFile, 'r') as file:
         headerRaw = []
         reader = csv.reader(file)
         # print(reader)
@@ -158,102 +160,121 @@ def normalizeTreatedWells(wellControl, wellTreatment):
     return normalizedWellTreatment, Metadata_pert_mfc_id
 
 
-def run():
-    print('start')
+################################
+# def run():
 
-    cur_dir = os.getcwd()
-    print("currentDir[" + str(cur_dir) + "]")
-    os.path.isdir(cur_dir)
+print('start')
+cur_dir = os.getcwd()
+print("currentDir[" + str(cur_dir) + "]")
+os.path.isdir(cur_dir)
 
-    # read treatments formulas
-    rawsChemicalAnnotationsFile = readChemicalAnnotationsFile()
-    # parse  all treatments formulas
-    parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes = \
-        parseChemicalAnnotationsFileSmiles(rawsChemicalAnnotationsFile)
+# read treatments formulas
+rawsChemicalAnnotationsFile = readChemicalAnnotationsFile()
+# parse  all treatments formulas
+parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes = \
+    parseChemicalAnnotationsFileSmiles(rawsChemicalAnnotationsFile)
 
-    # keep only used atoms in the smiles formula, atoms data and count statistics
-    parsedChemicalAnnotationSmiles_usedAtoms, usedAtoms, usedAtomsCountMax, parsedChemicalAnnotationSmiles_usedAtoms_Hash = \
-        dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes)
+# keep only used atoms in the smiles formula, atoms data and count statistics
+parsedChemicalAnnotationSmiles_usedAtoms, usedAtoms, usedAtomsCountMax, parsedChemicalAnnotationSmiles_usedAtoms_Hash = \
+    dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes)
 
-    numOfTreatments = len(parsedChemicalAnnotationSmiles_usedAtoms_Hash)
-    print("numOfTreatments[" + str(numOfTreatments) + "]")  # 30616
+numOfTreatments = len(parsedChemicalAnnotationSmiles_usedAtoms_Hash)
+print("numOfTreatments[" + str(numOfTreatments) + "]")
+# 30616
 
-    print("usedAtoms[" + str(usedAtoms) + "]")
-    # ['Cl', 'c', 'C', 'N', 'O', 'S', 'H', 'F', 'Cn', 'Sc', 'I', 'Br', 'P', 'Sn']
+print("usedAtoms[" + str(usedAtoms) + "]")
+# ['Cl', 'c', 'C', 'N', 'O', 'S', 'H', 'F', 'Cn', 'Sc', 'I', 'Br', 'P', 'Sn']
 
-    print("numOfTreatmentsUsedTheAtom[" + str(usedAtomsIndexesHash.values()) + "]")
-    # dict_values([3087, 29879, 30351, 28458, 29389, 8421, 19802, 5751, 1828, 812, 36, 691, 37, 1])
+print("numOfTreatmentsUsedTheAtom[" + str(usedAtomsIndexesHash.values()) + "]")
+# dict_values([3087, 29879, 30351, 28458, 29389, 8421, 19802, 5751, 1828, 812, 36, 691, 37, 1])
 
-    print("usedAtomsCountMax[" + str(usedAtomsCountMax) + "]")
-    # [5, 42, 62, 11, 19, 4, 24, 9, 2, 3, 6, 4, 2, 1]
+print("usedAtomsCountMax[" + str(usedAtomsCountMax) + "]")
+# [5, 42, 62, 11, 19, 4, 24, 9, 2, 3, 6, 4, 2, 1]
 
-    print("total Treatments[" + str(len(parsedChemicalAnnotationSmiles_usedAtoms)) + "]")  # '30616'
+print("total Treatments[" + str(len(parsedChemicalAnnotationSmiles_usedAtoms)) + "]")
+# '30616'
 
-    # todo: calculate statistics about formulas (hystogram of used muleculas):
+# todo: calculate statistics about formulas (hystogram of used muleculas):
 
-    # todo: read plates from disk dirs
+# read plates from disk dirs
+platesOnDisk = os.listdir(profilesDir)
+# random.shuffle(platesOnDisk)
+crossValidations = 10
+numOfPlatesToUse = len(platesOnDisk)
+numOfPlatesToUse = 10  # todo: debug!!!
+validationSize = (int)(0.1 * numOfPlatesToUse)
+platesOnDiskNP = np.array(platesOnDisk)
+validationPlates = None
+validationPlates = None
 
-    # read X plates avg well data (10)
-    mean_well_profilesFileDF = readPlateData(mean_well_profilesFile)
+for crossValidationIdx in range(10):
+    crossValidationIdx = 3 # todo: #debug
+    validationIdxs = list(range(validationSize * crossValidationIdx, validationSize * (crossValidationIdx + 1)))
+    trainingIdxs = list(set(range(numOfPlatesToUse)) - set(validationIdxs))
+    validationPlates = platesOnDiskNP[validationIdxs]
+    trainingPlates = platesOnDiskNP[trainingIdxs]
+    break  # todo: #debug
 
-    # split control wells and treated wells
-    wellControl, wellTreatment = splitControlAndTreated(mean_well_profilesFileDF,
-                                                        parsedChemicalAnnotationSmiles_usedAtoms_Hash)
+# read X plates avg well data (10)
+mean_well_profilesFileDF = readPlateData(startDir + mean_well_profilesFile)
 
-    normalizedWellTreatment, Metadata_pert_mfc_id = normalizeTreatedWells(wellControl, wellTreatment)
-    # print(normalizedWellTreatment)
-    # print(Metadata_pert_mfc_id)
-    treatmentsOfCurrentPlate = list(
-        map(lambda id: parsedChemicalAnnotationSmiles_usedAtoms_Hash[id], Metadata_pert_mfc_id))
-    treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
+# split control wells and treated wells
+wellControl, wellTreatment = splitControlAndTreated(mean_well_profilesFileDF,
+                                                    parsedChemicalAnnotationSmiles_usedAtoms_Hash)
 
-    # todo: add control wells with 0 treatment to the data
+normalizedWellTreatment, Metadata_pert_mfc_id = normalizeTreatedWells(wellControl, wellTreatment)
+# print(normalizedWellTreatment)
+# print(Metadata_pert_mfc_id)
+treatmentsOfCurrentPlate = list(
+    map(lambda id: parsedChemicalAnnotationSmiles_usedAtoms_Hash[id], Metadata_pert_mfc_id))
+treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
 
-    # split train and test (10 cross validation)
-    # Split a whole plate to be a validation
-    # build model (wells to formula)
+# todo: add control wells with 0 treatment to the data
 
-    # build ANN structure
-    input_dim = len(normalizedWellTreatment.columns)
-    layers = [(int)(input_dim / 2), len(usedAtoms)]
-    model = Sequential()
-    model.add(Dense(layers[0], input_dim=input_dim, activation='sigmoid'))
-    model.add(Dense(layers[1], activation='sigmoid'))  # relu
-    METRICS = [
-        # tf.keras.metrics.TruePositives(name='tp'),
-        # tf.keras.metrics.FalsePositives(name='fp'),
-        # tf.keras.metrics.TrueNegatives(name='tn'),
-        # tf.keras.metrics.FalseNegatives(name='fn'),
-        # tf.keras.metrics.BinaryAccuracy(name='accuracy'),
-        # tf.keras.metrics.Precision(name='precision'),
-        # tf.keras.metrics.Recall(name='recall'),
-        tf.keras.metrics.AUC(name='auc'),
-    ]
-    loss = tf.keras.losses.BinaryCrossentropy()
-    optimizer = tf.keras.optimizers.Adam(lr=1e-3)
-    # compile the keras model
-    model.compile(loss=loss, optimizer=optimizer, metrics=METRICS)
-    fitBeginTime = time.time()
-    print("start fit")
-    epochs = 10
-    batch_size = 64
-    model.fit(x=normalizedWellTreatment,
-              y=treatmentsOfCurrentPlateDf,
-              batch_size=batch_size,
-              epochs=epochs,
-              use_multiprocessing=True,
-              verbose=2,
-              workers=3
-              # ,callbacks=[cp_callback]
-              )
-    print("fit took[" + str(time.time() - fitBeginTime) + "]")
-    # calculate RMSE per validation split
+# split train and test (10 cross validation)
+# Split a whole plate to be a validation
+# build model (wells to formula)
 
-    # build a smart random treatment
-    # calculate RMSE for the random treatment
-    # compare RMSEs
+# build ANN structure
+input_dim = len(normalizedWellTreatment.columns)
+layers = [(int)(input_dim / 2), len(usedAtoms)]
+model = Sequential()
+model.add(Dense(layers[0], input_dim=input_dim, activation='sigmoid'))
+model.add(Dense(layers[1], activation='sigmoid'))  # relu
+METRICS = [
+    # tf.keras.metrics.TruePositives(name='tp'),
+    # tf.keras.metrics.FalsePositives(name='fp'),
+    # tf.keras.metrics.TrueNegatives(name='tn'),
+    # tf.keras.metrics.FalseNegatives(name='fn'),
+    # tf.keras.metrics.BinaryAccuracy(name='accuracy'),
+    # tf.keras.metrics.Precision(name='precision'),
+    # tf.keras.metrics.Recall(name='recall'),
+    tf.keras.metrics.AUC(name='auc'),
+]
+loss = tf.keras.losses.BinaryCrossentropy()
+optimizer = tf.keras.optimizers.Adam(lr=1e-3)
+# compile the keras model
+model.compile(loss=loss, optimizer=optimizer, metrics=METRICS)
+fitBeginTime = time.time()
+print("start fit")
+epochs = 10
+batch_size = 64
+model.fit(x=normalizedWellTreatment,
+          y=treatmentsOfCurrentPlateDf,
+          batch_size=batch_size,
+          epochs=epochs,
+          use_multiprocessing=True,
+          verbose=2,
+          workers=3
+          # ,callbacks=[cp_callback]
+          )
+print("fit took[" + str(time.time() - fitBeginTime) + "]")
+# calculate RMSE per validation split
 
-    print('end')
+# build a smart random treatment
+# calculate RMSE for the random treatment
+# compare RMSEs
 
+print('end')
 
-run()
+# run()
