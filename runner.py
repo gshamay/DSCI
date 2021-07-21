@@ -35,6 +35,7 @@ usedAtomsIndexesHashGlobal = {}
 # look like {8: 3087, 104: 29879, 107: 30351, 108: 28458, 109: 29389, 112: 8421, 105: 19802, 110: 5751, 97: 1828, 11: 812, 116: 36, 24: 691, 111: 37, 38: 1}
 modelGlobal = None
 parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal = None
+usedAtomsGlobal = None
 startDir = 'C:/bgu/DSCI/DSCI'
 chemical_annotationsFile = '/data/chemical_annotations.csv'
 mean_well_profilesFile = '/data/mean_well_profiles.csv'
@@ -138,10 +139,11 @@ def readPlateData(mean_well_profilesFile):
     return mean_well_profilesFileDF
 
 
-def splitControlAndTreated(mean_well_profilesFileDF, parsedChemicalAnnotationSmiles_usedAtoms_Hash):
+def splitControlAndTreated(mean_well_profilesFileDF):
+    global parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal
     wellControl = mean_well_profilesFileDF.loc[mean_well_profilesFileDF['Metadata_broad_sample'].isin(['DMSO'])]
     wellTreatment = mean_well_profilesFileDF.loc[~mean_well_profilesFileDF['Metadata_broad_sample'].isin(['DMSO'])]
-    treatmentForLine = parsedChemicalAnnotationSmiles_usedAtoms_Hash[
+    treatmentForLine = parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[
         mean_well_profilesFileDF.iloc[0]['Metadata_pert_mfc_id']]
     return wellControl, wellTreatment
 
@@ -160,23 +162,19 @@ def normalizeTreatedWells(wellControl, wellTreatment):
     return normalizedWellTreatment, Metadata_pert_mfc_id
 
 
-def selectTrainAndValidationPlates():
+def selectTrainAndValidationPlates(crossValidationIdx, crossValidations):
     platesOnDisk = os.listdir(profilesDir)
-    # random.shuffle(platesOnDisk)
-    crossValidations = 10
+    # random.shuffle(platesOnDisk) # We don' t shuffle in any stage ! we want the order to stay between the cross validaiton steps
     numOfPlatesToUse = len(platesOnDisk)
-    numOfPlatesToUse = 10  # todo: debug!!!
+    numOfPlatesToUse = crossValidations  # todo: debug !!! to avoid reading the whole data while debugging!!!
     validationSize = (int)((1 / crossValidations) * numOfPlatesToUse)
     platesOnDiskNP = np.array(platesOnDisk)
     trainingPlates = None
     validationPlates = None
-    for crossValidationIdx in range(crossValidations):
-        crossValidationIdx = 3  # todo: #debug
-        validationIdxs = list(range(validationSize * crossValidationIdx, validationSize * (crossValidationIdx + 1)))
-        trainingIdxs = list(set(range(numOfPlatesToUse)) - set(validationIdxs))
-        validationPlates = platesOnDiskNP[validationIdxs]
-        trainingPlates = platesOnDiskNP[trainingIdxs]
-        break  # todo: #debug
+    validationIdxs = list(range(validationSize * crossValidationIdx, validationSize * (crossValidationIdx + 1)))
+    trainingIdxs = list(set(range(numOfPlatesToUse)) - set(validationIdxs))
+    validationPlates = platesOnDiskNP[validationIdxs]
+    trainingPlates = platesOnDiskNP[trainingIdxs]
     return trainingPlates, validationPlates
 
 
@@ -222,13 +220,13 @@ def generateRandomTreatment():
     return smartRandom
 
 
-def InitializeModelIfNeeeded(normalizedWellTreatment, usedAtoms):
-    global modelGlobal
+def InitializeModelIfNeeeded(normalizedWellTreatment):
+    global modelGlobal, usedAtomsGlobal
     # build model (wells to formula) # build ANN structure
     if (modelGlobal == None):
         modelGlobal = Sequential()
         input_dim = len(normalizedWellTreatment.columns)
-        layers = [(int)(input_dim / 2), len(usedAtoms)]
+        layers = [(int)(input_dim / 2), len(usedAtomsGlobal)]
         modelGlobal.add(Dense(layers[0], input_dim=input_dim, activation='sigmoid'))
         modelGlobal.add(Dense(layers[1], activation='sigmoid'))  # relu
         METRICS = [
@@ -247,47 +245,73 @@ def InitializeModelIfNeeeded(normalizedWellTreatment, usedAtoms):
         modelGlobal.compile(loss=loss, optimizer=optimizer, metrics=METRICS)
 
 
-def fitModelWithPlateData(model, normalizedWellTreatment, treatmentsOfCurrentPlateDf):
-    if (model == None):
+def fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf):
+    global modelGlobal
+    if (modelGlobal == None):
         print('error! model is None')
         return
     fitBeginTime = time.time()
     print("start fit")
     epochs = 10
     batch_size = 64
-    model.fit(x=normalizedWellTreatment,
-              y=treatmentsOfCurrentPlateDf,
-              batch_size=batch_size,
-              epochs=epochs,
-              use_multiprocessing=True,
-              verbose=2,
-              workers=3
-              # ,callbacks=[cp_callback]
-              )
+    modelGlobal.fit(x=normalizedWellTreatment,
+                    y=treatmentsOfCurrentPlateDf,
+                    batch_size=batch_size,
+                    epochs=epochs,
+                    use_multiprocessing=True,
+                    verbose=2,
+                    workers=3
+                    # ,callbacks=[cp_callback]
+                    )
     print("fit took[" + str(time.time() - fitBeginTime) + "]")
 
 
 ################################
 def run():
-    global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal
+    global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal
     print('start')
     cur_dir = os.getcwd()
     print("currentDir[" + str(cur_dir) + "]")
     os.path.isdir(cur_dir)
 
     # preprocess
-    usedAtoms = preprocessTreatments()
+    usedAtomsGlobal = preprocessTreatments()
 
-    # select train and test plates from disk dirs
-    trainingPlates, validationPlates = selectTrainAndValidationPlates()
+    crossValidations = 3
+    for crossValidationIdx in range(crossValidations):
+        # select train and test plates from disk dirs
+        trainingPlates, validationPlates = selectTrainAndValidationPlates(crossValidationIdx, crossValidations)
+        for plateNumber in trainingPlates:
+            trainModelWithPlate(plateNumber)
 
+        # run model predict on validation
+        for plateNumber in validationPlates:
+            validateModelWithPlate(plateNumber)
+
+        # calculate RMSE for validation cross step # avg RMSE and RMSE diff for all validations
+        print("randomTreatment[" + str(generateRandomTreatment()) + "]")
+
+        # calculate RMSE for X random treatment(s)
+        # compare RMSEs
+
+    # output total rmse and rmse diff
+    print('end')
+
+
+def validateModelWithPlate(plateNumber):
+    print("validate plate[" + str(plateNumber) + "]")
+    # modelGlobal.predict(plateNumber)
+    # calculate RMSE for validation plate
+    # rms = mean_squared_error(y_actual, y_predicted, squared=False)
+
+
+def trainModelWithPlate(plateNumber):
+    print("plate[" + plateNumber + "]")
+    plateCsv = startDir + mean_well_profilesFile  # todo: change this with plate number
     # read plates avg well data
-    mean_well_profilesFileDF = readPlateData(startDir + mean_well_profilesFile)
-
+    mean_well_profilesFileDF = readPlateData(plateCsv)
     # split control wells and treated wells
-    wellControl, wellTreatment = splitControlAndTreated(mean_well_profilesFileDF,
-                                                        parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal)
-
+    wellControl, wellTreatment = splitControlAndTreated(mean_well_profilesFileDF)
     # Normalize treated wells with the plate control
     normalizedWellTreatment, Metadata_pert_mfc_id = normalizeTreatedWells(wellControl, wellTreatment)
     # print(normalizedWellTreatment)
@@ -295,24 +319,9 @@ def run():
     treatmentsOfCurrentPlate = list(
         map(lambda id: parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[id], Metadata_pert_mfc_id))
     treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
-
     # todo: add control wells with 0 treatment to the data
-
-    InitializeModelIfNeeeded(normalizedWellTreatment, usedAtoms)
-    fitModelWithPlateData(modelGlobal, normalizedWellTreatment, treatmentsOfCurrentPlateDf)
-
-    # run model predict on validation
-
-    # calculate RMSE for validation
-    # rms = mean_squared_error(y_actual, y_predicted, squared=False)
-
-    # calculate RMSE for the random treatment(s)
-
-    # compare RMSEs
-
-    print("randomTreatment[" + str(generateRandomTreatment()) + "]")
-
-    print('end')
+    InitializeModelIfNeeeded(normalizedWellTreatment)
+    fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf)
 
 
 run()
