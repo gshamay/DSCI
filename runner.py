@@ -307,7 +307,8 @@ def validateModelWithPlate(plateNumber):
 
 def trainModelWithPlate(plateNumber):
     print("plate[" + plateNumber + "]")
-    plateCsv = startDir + mean_well_profilesFile  # todo: change this with plate number
+    plateCsv = startDir +  "/data/profiles.dir/" + plateNumber + "/profiles/mean_well_profiles.csv"
+    # C:\bgu\DSCI\DSCI\data\profiles.dir\Plate_24279\profiles\mean_well_profiles.csv
     # read plates avg well data
     mean_well_profilesFileDF = readPlateData(plateCsv)
     # split control wells and treated wells
