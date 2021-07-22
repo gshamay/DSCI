@@ -12,8 +12,13 @@ from sklearn.metrics import mean_squared_error
 from math import sqrt
 import statistics
 
+###################################
+# running configuraitons
 debugShortRun = False
-debugShortRun = True
+# debugShortRun = True
+
+crossValidationsGlobal = 10
+###################################
 
 atomsPeriodicTable = ['c', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl',
                       'Ar',
@@ -379,7 +384,7 @@ def preparePlateData(plateNumber):
 
 ################################
 def run():
-    global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal
+    global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal, crossValidationsGlobal
     printDebug('start')
     printToFile()
     cur_dir = os.getcwd()
@@ -389,11 +394,11 @@ def run():
     # preprocess
     usedAtomsGlobal = preprocessTreatments()
 
-    crossValidations = 3
-    for crossValidationIdx in range(crossValidations):
-        printDebug("--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidations) + "]-------------------")
+    for crossValidationIdx in range(crossValidationsGlobal):
+        printDebug(
+            "--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidationsGlobal) + "]-------------------")
         # select train and test plates from disk dirs
-        trainingPlates, validationPlates = selectTrainAndValidationPlates(crossValidationIdx, crossValidations)
+        trainingPlates, validationPlates = selectTrainAndValidationPlates(crossValidationIdx, crossValidationsGlobal)
         printDebug("Training plates[" + str(trainingPlates) + "]")
         printDebug("Validation plates[" + str(validationPlates) + "]")
         for plateNumber in trainingPlates:
