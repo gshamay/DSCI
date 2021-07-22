@@ -389,6 +389,7 @@ def preparePlateData(plateNumber):
 def run():
     global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal, crossValidationsGlobal
     printDebug('start')
+    startTime = time.time()
     printToFile()
     cur_dir = os.getcwd()
     printDebug("currentDir[" + str(cur_dir) + "]")
@@ -398,6 +399,7 @@ def run():
     usedAtomsGlobal = preprocessTreatments()
 
     for crossValidationIdx in range(crossValidationsGlobal):
+        XValidaitonBeginTime = time.time()
         printDebug(
             "--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidationsGlobal) + "]-------------------")
         # select train and test plates from disk dirs
@@ -407,9 +409,21 @@ def run():
         for plateNumber in trainingPlates:
             trainModelWithPlate(plateNumber)
 
+        printDebug("train took[" + str(time.time() - XValidaitonBeginTime) + "]")
+
+        validaitonBeginTime = time.time()
         # run model predict on validation and calciulate RMSE and Random RMSE - per plate
         for plateNumber in validationPlates:
             validateModelWithPlate(plateNumber)
+
+        printDebug(
+            'RMSEActualGlobal mean[' + str(statistics.mean(RMSEActualGlobal)) + '][' + str(RMSEActualGlobal) + ']')
+        printDebug(
+            'RMSERandomGlobal mean[' + str(statistics.mean(RMSERandomGlobal)) + '][' + str(RMSERandomGlobal) + ']')
+        printDebug("validaiton took[" + str(time.time() - validaitonBeginTime) + "]")
+        printDebug(
+            "XValidaiton (train + validaiton) took[" + str(time.time() - XValidaitonBeginTime)
+            + "]validation[" + str(crossValidationIdx) + "/" + str(crossValidationsGlobal) + "]")
         printToFile()
 
     # output total rmse and Random rmse - for all plates in all cross validaitons
@@ -417,7 +431,9 @@ def run():
     printDebug('RMSERandomGlobal mean[' + str(statistics.mean(RMSERandomGlobal)) + '][' + str(RMSERandomGlobal) + ']')
     printDebug("crossValidationsGlobal[" + str(crossValidationsGlobal)
                + "]epochsGlobal[" + str(epochsGlobal)
-               + "]batch_sizeGlobal[" + batch_sizeGlobal + "]")
+               + "]batch_sizeGlobal[" + str(batch_sizeGlobal) + "]")
+
+    printDebug("run took[" + str(time.time() - startTime) + "]")
     printDebug('end ')
     printToFile()
 
