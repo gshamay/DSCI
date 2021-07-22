@@ -271,18 +271,21 @@ def validateModelWithPlate(plateNumber):
     global RMSERandomGlobal, RMSEActualGlobal
     print("validate plate[" + str(plateNumber) + "]")
     Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
+    # run prediction
     prediction = modelGlobal.predict(normalizedWellTreatment)
-
-    # todo: calculate RMSE for validation plate
+    # get actual data of validation plates
     actualTreatmentsOfCurrentPlateDf = treatmentsIDsToData(Metadata_pert_mfc_ids)
+    # calculate RMSE of prediction vs. actual validation plates data
     rmse = sqrt(mean_squared_error(prediction, actualTreatmentsOfCurrentPlateDf))
     print("RMSE[" + str(rmse) + "] actual")
+    # generate a random prediction
     randomPrediction = list(map(lambda i: generateRandomTreatment(), actualTreatmentsOfCurrentPlateDf.values))
+    # calculate RMSE of the random prediction vs. actual validation plates data
     rmseRandom = sqrt(mean_squared_error(randomPrediction, actualTreatmentsOfCurrentPlateDf))
     print("RMSE [" + str(rmseRandom) + "] Random")
     RMSEActualGlobal.append(rmse)
     RMSERandomGlobal.append(rmseRandom)
-    # todo: Check diff of prediction between prediction on control and prediction done on treated plates
+    # todo: Check if there is a diff of prediction between prediction on control and prediction done on treated plates
 
 
 def trainModelWithPlate(plateNumber):
@@ -311,7 +314,7 @@ def preparePlateData(plateNumber):
     normalizedWellTreatment, Metadata_pert_mfc_ids = normalizeTreatedWells(wellControl, wellTreatment)
     # print(normalizedWellTreatment)
     # print(Metadata_pert_mfc_id)
-    # todo: add control wells with 0 treatment to the data
+    # todo: consider adding control wells with 0 treatment to the data
     return Metadata_pert_mfc_ids, normalizedWellTreatment
 
 
@@ -331,16 +334,16 @@ def run():
         print("--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidations) + "]-------------------")
         # select train and test plates from disk dirs
         trainingPlates, validationPlates = selectTrainAndValidationPlates(crossValidationIdx, crossValidations)
+        print("Training plates[" + str(trainingPlates) + "]")
+        print("Validation plates[" + str(validationPlates) + "]")
         for plateNumber in trainingPlates:
             trainModelWithPlate(plateNumber)
 
-        # run model predict on validation
+        # run model predict on validation and calciulate RMSE and Random RMSE - per plate
         for plateNumber in validationPlates:
             validateModelWithPlate(plateNumber)
 
-
-    # output total rmse and rmse diff
-
+    # output total rmse and Random rmse - for all plates in all cross validaitons
     print('RMSEActualGlobal mean[' + str(statistics.mean(RMSEActualGlobal)) + '][' + str(RMSEActualGlobal) + ']')
     print('RMSERandomGlobal mean[' + str(statistics.mean(RMSERandomGlobal)) + '][' + str(RMSERandomGlobal) + ']')
     print('end')
