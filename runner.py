@@ -6,7 +6,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
-import os
 import random
 from sklearn.metrics import mean_squared_error
 from math import sqrt
@@ -51,6 +50,8 @@ parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal = None
 usedAtomsGlobal = None
 RMSEActualGlobal = []
 RMSERandomGlobal = []
+countTreatedWellsGlobal = 0
+countControlWellsGlobal = 0
 
 chemical_annotationsFile = '/data/chemical_annotations.csv'
 profilesDir = startDir + '/data/profiles.dir'
@@ -216,9 +217,11 @@ def readPlateData(mean_well_profilesFile):
 
 
 def splitControlAndTreated(mean_well_profilesFileDF):
-    global parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal
+    global parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, countTreatedWellsGlobal, countControlWellsGlobal
     wellControl = mean_well_profilesFileDF.loc[mean_well_profilesFileDF['Metadata_broad_sample'].isin(['DMSO'])]
+    countControlWellsGlobal = countControlWellsGlobal + len(wellControl)
     wellTreatment = mean_well_profilesFileDF.loc[~mean_well_profilesFileDF['Metadata_broad_sample'].isin(['DMSO'])]
+    countTreatedWellsGlobal = countTreatedWellsGlobal + len(wellTreatment)
     # treatmentForLine = parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[mean_well_profilesFileDF.iloc[0]['Metadata_pert_mfc_id']]
     return wellControl, wellTreatment
 
@@ -387,7 +390,8 @@ def preparePlateData(plateNumber):
 
 ################################
 def run():
-    global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal, crossValidationsGlobal
+    global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal, crossValidationsGlobal, \
+        countTreatedWellsGlobal, countControlWellsGlobal
     printDebug('start')
     startTime = time.time()
     printToFile()
@@ -399,6 +403,9 @@ def run():
     usedAtomsGlobal = preprocessTreatments()
 
     for crossValidationIdx in range(crossValidationsGlobal):
+        # in  each iteraiton of the cross validation we prepare the whole plates data, and therefore those must be recount
+        countTreatedWellsGlobal = 0
+        countControlWellsGlobal = 0
         XValidaitonBeginTime = time.time()
         printDebug(
             "--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidationsGlobal) + "]-------------------")
@@ -423,7 +430,10 @@ def run():
         printDebug("validaiton took[" + str(time.time() - validaitonBeginTime) + "]")
         printDebug(
             "XValidaiton (train + validaiton) took[" + str(time.time() - XValidaitonBeginTime)
-            + "]validation[" + str(crossValidationIdx) + "/" + str(crossValidationsGlobal) + "]")
+            + "]validation[" + str(crossValidationIdx) + "/" + str(crossValidationsGlobal)
+            + "]countTreatedWells[" + str(countTreatedWellsGlobal)
+            + "]countControlWells[" + str(countControlWellsGlobal)
+            + "]")
         printToFile()
 
     # output total rmse and Random rmse - for all plates in all cross validaitons
