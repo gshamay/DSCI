@@ -12,10 +12,6 @@ from sklearn.metrics import mean_squared_error
 from math import sqrt
 import statistics
 
-from io import StringIO
-from sklearn.metrics import roc_auc_score
-from scipy import stats
-
 debugShortRun = False
 debugShortRun = True
 
@@ -49,6 +45,68 @@ chemical_annotationsFile = '/data/chemical_annotations.csv'
 mean_well_profilesFile = '/data/mean_well_profiles.csv'
 profilesDir = startDir + '/data/profiles.dir'
 
+#############################
+# this is a helper code / Print to File
+import datetime
+import os
+import matplotlib.pyplot as plt
+
+stringToPrintToFileGlobal = ""
+
+
+def printDebug(strLog):
+    global stringToPrintToFileGlobal
+    initLogFileNameIfNeeded()
+    dateString = genDateString()
+    strLog = dateString + " " + strLog
+    print(strLog)
+    stringToPrintToFileGlobal = stringToPrintToFileGlobal + strLog + "\r"
+
+
+def initLogFileNameIfNeeded():
+    if (_FileName_ == ""):
+        setLogFileName(str(genDateString()))
+
+
+def genDateString():
+    dateString = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    return dateString
+
+
+_FileName_ = ""
+
+
+def setLogFileName(fileName):
+    global _FileName_
+    _FileName_ = fileName
+
+
+def printToFile(fileName=""):
+    if (fileName == ""):
+        fileName = _FileName_
+    fileName = fileNameToFullPath(fileName)
+    global stringToPrintToFileGlobal
+    file1 = open(fileName, "a")
+    file1.write("\r************************\r")
+    file1.write(stringToPrintToFileGlobal)
+    stringToPrintToFileGlobal = ""
+    file1.close()
+
+
+def fileNameToFullPath(fileName, ext=".log"):
+    fileName = startDir + "/ExperimentsResults/" + fileName + ext
+    return fileName
+
+
+def renameToFinalLog(src, trgt):
+    os.rename(fileNameToFullPath(src), fileNameToFullPath(trgt))
+
+
+def plotToFile(fileName):
+    plt.savefig(fileNameToFullPath(fileName, '.png'))
+
+
+#############################
 
 def dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes):
     # parsedChemicalAnnotationSmiles_AllAtoms looks like
@@ -61,7 +119,7 @@ def dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes):
         parsedChemicalAnnotationSmiles_usedAtomsForTreatment = list(map(lambda i: l[1][i], usedAtomsIndexes))
         parsedChemicalAnnotationSmiles_usedAtoms.append([l[0], parsedChemicalAnnotationSmiles_usedAtomsForTreatment])
         parsedChemicalAnnotationSmiles_usedAtoms_Hash[l[0]] = parsedChemicalAnnotationSmiles_usedAtomsForTreatment
-    # print(ret)
+    # printDebug(ret)
     usedAtomsCountMax = list(map(lambda i: atomsCountMaxGlobal[i], usedAtomsIndexes))
     return parsedChemicalAnnotationSmiles_usedAtoms, usedAtoms, usedAtomsCountMax, parsedChemicalAnnotationSmiles_usedAtoms_Hash
 
@@ -89,7 +147,7 @@ def readChemicalAnnotationsFile():
     with open(startDir + chemical_annotationsFile, 'r') as file:
         headerRaw = []
         reader = csv.reader(file)
-        # print(reader)
+        # printDebug(reader)
         for raw in reader:
             raw = [raw[0], raw[len(raw) - 2]]
             if (len(headerRaw) == 0):
@@ -102,7 +160,7 @@ def readChemicalAnnotationsFile():
 
 def parseSMILE(smile):
     global atomsPeriodicTableSortedGlobal, atomsCountMaxGlobal, usedAtomsIndexesHashGlobal
-    # print(smile)
+    # printDebug(smile)
     atomsCount = countAtomsInSmile(atomsPeriodicTableSortedGlobal, smile)
 
     # update global variables
@@ -113,11 +171,11 @@ def parseSMILE(smile):
             usedAtomsIndexesHashGlobal[usedIndex] = usedAtomsIndexesHashGlobal[usedIndex] + 1
         else:
             usedAtomsIndexesHashGlobal[usedIndex] = 1
-    # print(smile)
-    # print(atomsCount)
-    # print(atomsCountMax)
-    # print(usedAtoms)
-    # print(usedAtomsIndexes)
+    # printDebug(smile)
+    # printDebug(atomsCount)
+    # printDebug(atomsCountMax)
+    # printDebug(usedAtoms)
+    # printDebug(usedAtomsIndexes)
     return atomsCount
 
 
@@ -175,7 +233,7 @@ def selectTrainAndValidationPlates(crossValidationIdx, crossValidations):
     # random.shuffle(platesOnDisk) # We don' t shuffle in any stage ! we want the order to stay between the cross validaiton steps
     numOfPlatesToUse = len(platesOnDisk)
     if (debugShortRun):
-        print("### DEBUG !!! : run on only [" + str(crossValidations) + "]plates ###")
+        printDebug("### DEBUG !!! : run on only [" + str(crossValidations) + "]plates ###")
         numOfPlatesToUse = crossValidations  # todo: debug !!! to avoid reading the whole data while debugging!!!
     validationSize = (int)((1 / crossValidations) * numOfPlatesToUse)
     platesOnDiskNP = np.array(platesOnDisk)
@@ -197,15 +255,15 @@ def preprocessTreatments():
     parsedChemicalAnnotationSmiles_usedAtoms, usedAtoms, usedAtomsCountMaxGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal = \
         dropNonUsedAtoms(parsedChemicalAnnotationSmiles_AllAtoms, usedAtomsIndexes)
     numOfTreatments = len(parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal)
-    print("numOfTreatments[" + str(numOfTreatments) + "]")
+    printDebug("numOfTreatments[" + str(numOfTreatments) + "]")
     # 30616
-    print("usedAtoms[" + str(usedAtoms) + "]")
+    printDebug("usedAtoms[" + str(usedAtoms) + "]")
     # ['Cl', 'c', 'C', 'N', 'O', 'S', 'H', 'F', 'Cn', 'Sc', 'I', 'Br', 'P', 'Sn']
-    print("numOfTreatmentsUsedTheAtom[" + str(usedAtomsIndexesHashGlobal.values()) + "]")
+    printDebug("numOfTreatmentsUsedTheAtom[" + str(usedAtomsIndexesHashGlobal.values()) + "]")
     # dict_values([3087, 29879, 30351, 28458, 29389, 8421, 19802, 5751, 1828, 812, 36, 691, 37, 1])
-    print("usedAtomsCountMax[" + str(usedAtomsCountMaxGlobal) + "]")
+    printDebug("usedAtomsCountMax[" + str(usedAtomsCountMaxGlobal) + "]")
     # [5, 42, 62, 11, 19, 4, 24, 9, 2, 3, 6, 4, 2, 1]
-    print("total Treatments[" + str(len(parsedChemicalAnnotationSmiles_usedAtoms)) + "]")
+    printDebug("total Treatments[" + str(len(parsedChemicalAnnotationSmiles_usedAtoms)) + "]")
     # '30616'
 
     # todo: calculate statistics about formulas (hystogram of used muleculas):
@@ -249,10 +307,10 @@ def InitializeModelIfNeeeded(normalizedWellTreatment):
 def fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf):
     global modelGlobal
     if (modelGlobal == None):
-        print('error! model is None')
+        printDebug('error! model is None')
         return
     fitBeginTime = time.time()
-    print("start fit")
+    printDebug("start fit")
     epochs = 10
     batch_size = 64
     modelGlobal.fit(x=normalizedWellTreatment,
@@ -264,12 +322,12 @@ def fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf):
                     workers=3
                     # ,callbacks=[cp_callback]
                     )
-    print("fit took[" + str(time.time() - fitBeginTime) + "]")
+    printDebug("fit took[" + str(time.time() - fitBeginTime) + "]")
 
 
 def validateModelWithPlate(plateNumber):
     global RMSERandomGlobal, RMSEActualGlobal
-    print("validate plate[" + str(plateNumber) + "]")
+    printDebug("validate with plate[" + str(plateNumber) + "]")
     Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
     # run prediction
     prediction = modelGlobal.predict(normalizedWellTreatment)
@@ -277,18 +335,19 @@ def validateModelWithPlate(plateNumber):
     actualTreatmentsOfCurrentPlateDf = treatmentsIDsToData(Metadata_pert_mfc_ids)
     # calculate RMSE of prediction vs. actual validation plates data
     rmse = sqrt(mean_squared_error(prediction, actualTreatmentsOfCurrentPlateDf))
-    print("RMSE[" + str(rmse) + "] actual")
+    printDebug("RMSE[" + str(rmse) + "] actual")
     # generate a random prediction
     randomPrediction = list(map(lambda i: generateRandomTreatment(), actualTreatmentsOfCurrentPlateDf.values))
     # calculate RMSE of the random prediction vs. actual validation plates data
     rmseRandom = sqrt(mean_squared_error(randomPrediction, actualTreatmentsOfCurrentPlateDf))
-    print("RMSE [" + str(rmseRandom) + "] Random")
+    printDebug("RMSE [" + str(rmseRandom) + "] Random")
     RMSEActualGlobal.append(rmse)
     RMSERandomGlobal.append(rmseRandom)
     # todo: Check if there is a diff of prediction between prediction on control and prediction done on treated plates
 
 
 def trainModelWithPlate(plateNumber):
+    printDebug("train with plate[" + str(plateNumber) + "]")
     Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
     treatmentsOfCurrentPlateDf = treatmentsIDsToData(Metadata_pert_mfc_ids)
     InitializeModelIfNeeeded(normalizedWellTreatment)
@@ -303,7 +362,7 @@ def treatmentsIDsToData(Metadata_pert_mfc_ids):
 
 
 def preparePlateData(plateNumber):
-    print("plate[" + plateNumber + "]")
+    # printDebug("preparePlateData[" + plateNumber + "]")
     plateCsv = startDir + "/data/profiles.dir/" + plateNumber + "/profiles/mean_well_profiles.csv"
     # C:\bgu\DSCI\DSCI\data\profiles.dir\Plate_24279\profiles\mean_well_profiles.csv
     # read plates avg well data
@@ -312,8 +371,8 @@ def preparePlateData(plateNumber):
     wellControl, wellTreatment = splitControlAndTreated(mean_well_profilesFileDF)
     # Normalize treated wells with the plate control
     normalizedWellTreatment, Metadata_pert_mfc_ids = normalizeTreatedWells(wellControl, wellTreatment)
-    # print(normalizedWellTreatment)
-    # print(Metadata_pert_mfc_id)
+    # printDebug(normalizedWellTreatment)
+    # printDebug(Metadata_pert_mfc_id)
     # todo: consider adding control wells with 0 treatment to the data
     return Metadata_pert_mfc_ids, normalizedWellTreatment
 
@@ -321,9 +380,10 @@ def preparePlateData(plateNumber):
 ################################
 def run():
     global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal
-    print('start')
+    printDebug('start')
+    printToFile()
     cur_dir = os.getcwd()
-    print("currentDir[" + str(cur_dir) + "]")
+    printDebug("currentDir[" + str(cur_dir) + "]")
     os.path.isdir(cur_dir)
 
     # preprocess
@@ -331,22 +391,24 @@ def run():
 
     crossValidations = 3
     for crossValidationIdx in range(crossValidations):
-        print("--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidations) + "]-------------------")
+        printDebug("--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidations) + "]-------------------")
         # select train and test plates from disk dirs
         trainingPlates, validationPlates = selectTrainAndValidationPlates(crossValidationIdx, crossValidations)
-        print("Training plates[" + str(trainingPlates) + "]")
-        print("Validation plates[" + str(validationPlates) + "]")
+        printDebug("Training plates[" + str(trainingPlates) + "]")
+        printDebug("Validation plates[" + str(validationPlates) + "]")
         for plateNumber in trainingPlates:
             trainModelWithPlate(plateNumber)
 
         # run model predict on validation and calciulate RMSE and Random RMSE - per plate
         for plateNumber in validationPlates:
             validateModelWithPlate(plateNumber)
+        printToFile()
 
     # output total rmse and Random rmse - for all plates in all cross validaitons
-    print('RMSEActualGlobal mean[' + str(statistics.mean(RMSEActualGlobal)) + '][' + str(RMSEActualGlobal) + ']')
-    print('RMSERandomGlobal mean[' + str(statistics.mean(RMSERandomGlobal)) + '][' + str(RMSERandomGlobal) + ']')
-    print('end')
+    printDebug('RMSEActualGlobal mean[' + str(statistics.mean(RMSEActualGlobal)) + '][' + str(RMSEActualGlobal) + ']')
+    printDebug('RMSERandomGlobal mean[' + str(statistics.mean(RMSERandomGlobal)) + '][' + str(RMSERandomGlobal) + ']')
+    printDebug('end')
+    printToFile()
 
 
 run()
