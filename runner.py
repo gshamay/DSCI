@@ -9,10 +9,15 @@ from tensorflow.keras.layers import Dense
 import os
 import random
 from sklearn.metrics import mean_squared_error
+from math import sqrt
+import statistics
 
 from io import StringIO
 from sklearn.metrics import roc_auc_score
 from scipy import stats
+
+debugShortRun = False
+debugShortRun = True
 
 atomsPeriodicTable = ['c', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl',
                       'Ar',
@@ -36,6 +41,9 @@ usedAtomsIndexesHashGlobal = {}
 modelGlobal = None
 parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal = None
 usedAtomsGlobal = None
+RMSEActualGlobal = []
+RMSERandomGlobal = []
+
 startDir = 'C:/bgu/DSCI/DSCI'
 chemical_annotationsFile = '/data/chemical_annotations.csv'
 mean_well_profilesFile = '/data/mean_well_profiles.csv'
@@ -158,19 +166,19 @@ def normalizeTreatedWells(wellControl, wellTreatment):
     normalizedWellTreatment = wellTreatment.apply(lambda x:
                                                   x[wellsDataStartColumnNumber:] - avgWellControlNumericData, axis=1)
     # set the treatment formula ID to the normalized treatments
-    Metadata_pert_mfc_id = wellTreatment.loc[:, 'Metadata_pert_mfc_id']
-    return normalizedWellTreatment, Metadata_pert_mfc_id
+    Metadata_pert_mfc_ids = wellTreatment.loc[:, 'Metadata_pert_mfc_id']
+    return normalizedWellTreatment, Metadata_pert_mfc_ids
 
 
 def selectTrainAndValidationPlates(crossValidationIdx, crossValidations):
     platesOnDisk = os.listdir(profilesDir)
     # random.shuffle(platesOnDisk) # We don' t shuffle in any stage ! we want the order to stay between the cross validaiton steps
     numOfPlatesToUse = len(platesOnDisk)
-    numOfPlatesToUse = crossValidations  # todo: debug !!! to avoid reading the whole data while debugging!!!
+    if (debugShortRun):
+        print("### DEBUG !!! : run on only [" + str(crossValidations) + "]plates ###")
+        numOfPlatesToUse = crossValidations  # todo: debug !!! to avoid reading the whole data while debugging!!!
     validationSize = (int)((1 / crossValidations) * numOfPlatesToUse)
     platesOnDiskNP = np.array(platesOnDisk)
-    trainingPlates = None
-    validationPlates = None
     validationIdxs = list(range(validationSize * crossValidationIdx, validationSize * (crossValidationIdx + 1)))
     trainingIdxs = list(set(range(numOfPlatesToUse)) - set(validationIdxs))
     validationPlates = platesOnDiskNP[validationIdxs]
@@ -230,16 +238,9 @@ def InitializeModelIfNeeeded(normalizedWellTreatment):
         modelGlobal.add(Dense(layers[0], input_dim=input_dim, activation='sigmoid'))
         modelGlobal.add(Dense(layers[1], activation='sigmoid'))  # relu
         METRICS = [
-            # tf.keras.metrics.TruePositives(name='tp'),
-            # tf.keras.metrics.FalsePositives(name='fp'),
-            # tf.keras.metrics.TrueNegatives(name='tn'),
-            # tf.keras.metrics.FalseNegatives(name='fn'),
-            # tf.keras.metrics.BinaryAccuracy(name='accuracy'),
-            # tf.keras.metrics.Precision(name='precision'),
-            # tf.keras.metrics.Recall(name='recall'),
-            tf.keras.metrics.AUC(name='auc'),
+            tf.keras.metrics.MeanSquaredError(name="mean_squared_error", dtype=None)
         ]
-        loss = tf.keras.losses.BinaryCrossentropy()
+        loss = tf.keras.losses.MeanSquaredError()  # todo: consider MeanAbsoluteError or MeanAbsolutePercentageError
         optimizer = tf.keras.optimizers.Adam(lr=1e-3)
         # compile the keras model
         modelGlobal.compile(loss=loss, optimizer=optimizer, metrics=METRICS)
@@ -266,6 +267,54 @@ def fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf):
     print("fit took[" + str(time.time() - fitBeginTime) + "]")
 
 
+def validateModelWithPlate(plateNumber):
+    global RMSERandomGlobal, RMSEActualGlobal
+    print("validate plate[" + str(plateNumber) + "]")
+    Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
+    prediction = modelGlobal.predict(normalizedWellTreatment)
+
+    # todo: calculate RMSE for validation plate
+    actualTreatmentsOfCurrentPlateDf = treatmentsIDsToData(Metadata_pert_mfc_ids)
+    rmse = sqrt(mean_squared_error(prediction, actualTreatmentsOfCurrentPlateDf))
+    print("RMSE[" + str(rmse) + "] actual")
+    randomPrediction = list(map(lambda i: generateRandomTreatment(), actualTreatmentsOfCurrentPlateDf.values))
+    rmseRandom = sqrt(mean_squared_error(randomPrediction, actualTreatmentsOfCurrentPlateDf))
+    print("RMSE [" + str(rmseRandom) + "] Random")
+    RMSEActualGlobal.append(rmse)
+    RMSERandomGlobal.append(rmseRandom)
+    # todo: Check diff of prediction between prediction on control and prediction done on treated plates
+
+
+def trainModelWithPlate(plateNumber):
+    Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
+    treatmentsOfCurrentPlateDf = treatmentsIDsToData(Metadata_pert_mfc_ids)
+    InitializeModelIfNeeeded(normalizedWellTreatment)
+    fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf)
+
+
+def treatmentsIDsToData(Metadata_pert_mfc_ids):
+    treatmentsOfCurrentPlate = list(
+        map(lambda id: parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[id], Metadata_pert_mfc_ids))
+    treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
+    return treatmentsOfCurrentPlateDf
+
+
+def preparePlateData(plateNumber):
+    print("plate[" + plateNumber + "]")
+    plateCsv = startDir + "/data/profiles.dir/" + plateNumber + "/profiles/mean_well_profiles.csv"
+    # C:\bgu\DSCI\DSCI\data\profiles.dir\Plate_24279\profiles\mean_well_profiles.csv
+    # read plates avg well data
+    mean_well_profilesFileDF = readPlateData(plateCsv)
+    # split control wells and treated wells
+    wellControl, wellTreatment = splitControlAndTreated(mean_well_profilesFileDF)
+    # Normalize treated wells with the plate control
+    normalizedWellTreatment, Metadata_pert_mfc_ids = normalizeTreatedWells(wellControl, wellTreatment)
+    # print(normalizedWellTreatment)
+    # print(Metadata_pert_mfc_id)
+    # todo: add control wells with 0 treatment to the data
+    return Metadata_pert_mfc_ids, normalizedWellTreatment
+
+
 ################################
 def run():
     global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal
@@ -279,6 +328,7 @@ def run():
 
     crossValidations = 3
     for crossValidationIdx in range(crossValidations):
+        print("--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidations) + "]-------------------")
         # select train and test plates from disk dirs
         trainingPlates, validationPlates = selectTrainAndValidationPlates(crossValidationIdx, crossValidations)
         for plateNumber in trainingPlates:
@@ -288,41 +338,12 @@ def run():
         for plateNumber in validationPlates:
             validateModelWithPlate(plateNumber)
 
-        # calculate RMSE for validation cross step # avg RMSE and RMSE diff for all validations
-        print("randomTreatment[" + str(generateRandomTreatment()) + "]")
-
-        # calculate RMSE for X random treatment(s)
-        # compare RMSEs
 
     # output total rmse and rmse diff
+
+    print('RMSEActualGlobal mean[' + str(statistics.mean(RMSEActualGlobal)) + '][' + str(RMSEActualGlobal) + ']')
+    print('RMSERandomGlobal mean[' + str(statistics.mean(RMSERandomGlobal)) + '][' + str(RMSERandomGlobal) + ']')
     print('end')
-
-
-def validateModelWithPlate(plateNumber):
-    print("validate plate[" + str(plateNumber) + "]")
-    # modelGlobal.predict(plateNumber)
-    # calculate RMSE for validation plate
-    # rms = mean_squared_error(y_actual, y_predicted, squared=False)
-
-
-def trainModelWithPlate(plateNumber):
-    print("plate[" + plateNumber + "]")
-    plateCsv = startDir +  "/data/profiles.dir/" + plateNumber + "/profiles/mean_well_profiles.csv"
-    # C:\bgu\DSCI\DSCI\data\profiles.dir\Plate_24279\profiles\mean_well_profiles.csv
-    # read plates avg well data
-    mean_well_profilesFileDF = readPlateData(plateCsv)
-    # split control wells and treated wells
-    wellControl, wellTreatment = splitControlAndTreated(mean_well_profilesFileDF)
-    # Normalize treated wells with the plate control
-    normalizedWellTreatment, Metadata_pert_mfc_id = normalizeTreatedWells(wellControl, wellTreatment)
-    # print(normalizedWellTreatment)
-    # print(Metadata_pert_mfc_id)
-    treatmentsOfCurrentPlate = list(
-        map(lambda id: parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[id], Metadata_pert_mfc_id))
-    treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
-    # todo: add control wells with 0 treatment to the data
-    InitializeModelIfNeeeded(normalizedWellTreatment)
-    fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf)
 
 
 run()
