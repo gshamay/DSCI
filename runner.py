@@ -214,8 +214,7 @@ def splitControlAndTreated(mean_well_profilesFileDF):
     global parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal
     wellControl = mean_well_profilesFileDF.loc[mean_well_profilesFileDF['Metadata_broad_sample'].isin(['DMSO'])]
     wellTreatment = mean_well_profilesFileDF.loc[~mean_well_profilesFileDF['Metadata_broad_sample'].isin(['DMSO'])]
-    treatmentForLine = parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[
-        mean_well_profilesFileDF.iloc[0]['Metadata_pert_mfc_id']]
+    #treatmentForLine = parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[mean_well_profilesFileDF.iloc[0]['Metadata_pert_mfc_id']]
     return wellControl, wellTreatment
 
 
@@ -333,6 +332,7 @@ def fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf):
 def validateModelWithPlate(plateNumber):
     global RMSERandomGlobal, RMSEActualGlobal
     printDebug("validate with plate[" + str(plateNumber) + "]")
+    printToFile()
     Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
     # run prediction
     prediction = modelGlobal.predict(normalizedWellTreatment)
@@ -353,6 +353,7 @@ def validateModelWithPlate(plateNumber):
 
 def trainModelWithPlate(plateNumber):
     printDebug("train with plate[" + str(plateNumber) + "]")
+    printToFile()
     Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
     treatmentsOfCurrentPlateDf = treatmentsIDsToData(Metadata_pert_mfc_ids)
     InitializeModelIfNeeeded(normalizedWellTreatment)
@@ -365,7 +366,7 @@ def treatmentsIDsToData(Metadata_pert_mfc_ids):
     treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
     return treatmentsOfCurrentPlateDf
 
-
+#Plate_25372
 def preparePlateData(plateNumber):
     # printDebug("preparePlateData[" + plateNumber + "]")
     plateCsv = startDir + "/data/profiles.dir/" + plateNumber + "/profiles/mean_well_profiles.csv"
@@ -399,8 +400,8 @@ def run():
             "--- XValidaiton [" + str(crossValidationIdx) + "/" + str(crossValidationsGlobal) + "]-------------------")
         # select train and test plates from disk dirs
         trainingPlates, validationPlates = selectTrainAndValidationPlates(crossValidationIdx, crossValidationsGlobal)
-        printDebug("Training plates[" + str(trainingPlates) + "]")
-        printDebug("Validation plates[" + str(validationPlates) + "]")
+        printDebug("Training plates[" + str(len(trainingPlates)) + "][" + str(trainingPlates) + "]")
+        printDebug("Validation plates[" + str(len(validationPlates)) + "][" + str(validationPlates) + "]")
         for plateNumber in trainingPlates:
             trainModelWithPlate(plateNumber)
 
