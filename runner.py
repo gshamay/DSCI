@@ -13,11 +13,18 @@ from math import sqrt
 import statistics
 
 ###################################
-# running configuraitons
+# running configurations
 debugShortRun = False
 # debugShortRun = True
-
 crossValidationsGlobal = 10
+epochsGlobal = 10
+batch_sizeGlobal = 64
+startDir = 'C:/bgu/DSCI/DSCI'
+# application expect data to be located at  :
+#   <startDir>\data\profiles.dir\Plate_XYZK\profiles\mean_well_profiles.csv
+#   <startDir>\data\chemical_annotations.csv
+# experiments results will be written at :
+#   <startDir>\ExperimentsResults
 ###################################
 
 atomsPeriodicTable = ['c', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl',
@@ -45,9 +52,7 @@ usedAtomsGlobal = None
 RMSEActualGlobal = []
 RMSERandomGlobal = []
 
-startDir = 'C:/bgu/DSCI/DSCI'
 chemical_annotationsFile = '/data/chemical_annotations.csv'
-mean_well_profilesFile = '/data/mean_well_profiles.csv'
 profilesDir = startDir + '/data/profiles.dir'
 
 #############################
@@ -92,7 +97,7 @@ def printToFile(fileName=""):
     fileName = fileNameToFullPath(fileName)
     global stringToPrintToFileGlobal
     file1 = open(fileName, "a")
-    file1.write("\r************************\r")
+    # file1.write("\r************************\r")
     file1.write(stringToPrintToFileGlobal)
     stringToPrintToFileGlobal = ""
     file1.close()
@@ -214,7 +219,7 @@ def splitControlAndTreated(mean_well_profilesFileDF):
     global parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal
     wellControl = mean_well_profilesFileDF.loc[mean_well_profilesFileDF['Metadata_broad_sample'].isin(['DMSO'])]
     wellTreatment = mean_well_profilesFileDF.loc[~mean_well_profilesFileDF['Metadata_broad_sample'].isin(['DMSO'])]
-    #treatmentForLine = parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[mean_well_profilesFileDF.iloc[0]['Metadata_pert_mfc_id']]
+    # treatmentForLine = parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal[mean_well_profilesFileDF.iloc[0]['Metadata_pert_mfc_id']]
     return wellControl, wellTreatment
 
 
@@ -309,30 +314,27 @@ def InitializeModelIfNeeeded(normalizedWellTreatment):
 
 
 def fitModelWithPlateData(normalizedWellTreatment, treatmentsOfCurrentPlateDf):
-    global modelGlobal
+    global modelGlobal, batch_sizeGlobal, epochsGlobal
     if (modelGlobal == None):
         printDebug('error! model is None')
         return
     fitBeginTime = time.time()
-    printDebug("start fit")
-    epochs = 10
-    batch_size = 64
+    # printDebug("start fit")
     modelGlobal.fit(x=normalizedWellTreatment,
                     y=treatmentsOfCurrentPlateDf,
-                    batch_size=batch_size,
-                    epochs=epochs,
+                    batch_size=batch_sizeGlobal,
+                    epochs=epochsGlobal,
                     use_multiprocessing=True,
                     verbose=2,
                     workers=3
                     # ,callbacks=[cp_callback]
                     )
-    printDebug("fit took[" + str(time.time() - fitBeginTime) + "]")
+    # printDebug("fit took[" + str(time.time() - fitBeginTime) + "]")
 
 
 def validateModelWithPlate(plateNumber):
     global RMSERandomGlobal, RMSEActualGlobal
-    printDebug("validate with plate[" + str(plateNumber) + "]")
-    printToFile()
+    print("validate with plate[" + str(plateNumber) + "]")
     Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
     # run prediction
     prediction = modelGlobal.predict(normalizedWellTreatment)
@@ -340,20 +342,19 @@ def validateModelWithPlate(plateNumber):
     actualTreatmentsOfCurrentPlateDf = treatmentsIDsToData(Metadata_pert_mfc_ids)
     # calculate RMSE of prediction vs. actual validation plates data
     rmse = sqrt(mean_squared_error(prediction, actualTreatmentsOfCurrentPlateDf))
-    printDebug("RMSE[" + str(rmse) + "] actual")
+    print("RMSE[" + str(rmse) + "] actual")
     # generate a random prediction
     randomPrediction = list(map(lambda i: generateRandomTreatment(), actualTreatmentsOfCurrentPlateDf.values))
     # calculate RMSE of the random prediction vs. actual validation plates data
     rmseRandom = sqrt(mean_squared_error(randomPrediction, actualTreatmentsOfCurrentPlateDf))
-    printDebug("RMSE [" + str(rmseRandom) + "] Random")
+    print("RMSE [" + str(rmseRandom) + "] Random")
     RMSEActualGlobal.append(rmse)
     RMSERandomGlobal.append(rmseRandom)
     # todo: Check if there is a diff of prediction between prediction on control and prediction done on treated plates
 
 
 def trainModelWithPlate(plateNumber):
-    printDebug("train with plate[" + str(plateNumber) + "]")
-    printToFile()
+    print("train with plate[" + str(plateNumber) + "]")
     Metadata_pert_mfc_ids, normalizedWellTreatment = preparePlateData(plateNumber)
     treatmentsOfCurrentPlateDf = treatmentsIDsToData(Metadata_pert_mfc_ids)
     InitializeModelIfNeeeded(normalizedWellTreatment)
@@ -366,7 +367,8 @@ def treatmentsIDsToData(Metadata_pert_mfc_ids):
     treatmentsOfCurrentPlateDf = pd.DataFrame(treatmentsOfCurrentPlate)
     return treatmentsOfCurrentPlateDf
 
-#Plate_25372
+
+# Plate_25372
 def preparePlateData(plateNumber):
     # printDebug("preparePlateData[" + plateNumber + "]")
     plateCsv = startDir + "/data/profiles.dir/" + plateNumber + "/profiles/mean_well_profiles.csv"
@@ -413,7 +415,10 @@ def run():
     # output total rmse and Random rmse - for all plates in all cross validaitons
     printDebug('RMSEActualGlobal mean[' + str(statistics.mean(RMSEActualGlobal)) + '][' + str(RMSEActualGlobal) + ']')
     printDebug('RMSERandomGlobal mean[' + str(statistics.mean(RMSERandomGlobal)) + '][' + str(RMSERandomGlobal) + ']')
-    printDebug('end')
+    printDebug("crossValidationsGlobal[" + str(crossValidationsGlobal)
+               + "]epochsGlobal[" + str(epochsGlobal)
+               + "]batch_sizeGlobal[" + batch_sizeGlobal + "]")
+    printDebug('end ')
     printToFile()
 
 
