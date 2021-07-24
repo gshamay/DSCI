@@ -292,7 +292,8 @@ def generateRandomTreatment():
         usedRatio = usedAtomsNumList[index] / totalTreatments
         value = 0
         if random.random() <= usedRatio:
-            value = (int)(random.random() * usedAtomsCountMaxGlobal[index])
+            maxVal = usedAtomsCountMaxGlobal[index]
+            value = min((int)((random.random() * maxVal) + 1), maxVal)
 
         smartRandom.append(value)
     return smartRandom
