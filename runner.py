@@ -10,12 +10,18 @@ import random
 from sklearn.metrics import mean_squared_error
 from math import sqrt
 import statistics
+from tensorflow.keras.utils import plot_model
+# plot_model require pydot and graphviz
+from keras_visualizer import visualizer
 
 ###################################
 # running configurations
 debugShortRun = False
-# debugShortRun = True
 crossValidationsGlobal = 10
+
+# debugShortRun = True
+# crossValidationsGlobal = 3
+
 epochsGlobal = 10
 batch_sizeGlobal = 64
 startDir = 'C:/bgu/DSCI/DSCI'
@@ -389,6 +395,13 @@ def preparePlateData(plateNumber):
     return Metadata_pert_mfc_ids, normalizedWellTreatment
 
 
+def plotModel(modelGlobal):
+    plot_model(modelGlobal, to_file=startDir + "/ExperimentsResults/" + "model_plot.png",
+               show_shapes=True,
+               show_layer_names=True)
+    #visualizer(modelGlobal, filename=startDir + "/ExperimentsResults/" + "model_plot2.png", format='png', view=True)
+
+
 ################################
 def run():
     global modelGlobal, parsedChemicalAnnotationSmiles_usedAtoms_HashGlobal, usedAtomsGlobal, crossValidationsGlobal, \
@@ -404,6 +417,7 @@ def run():
     usedAtomsGlobal = preprocessTreatments()
 
     for crossValidationIdx in range(crossValidationsGlobal):
+        modelGlobal = None  # initialize the model every x validation cycle
         # in  each iteraiton of the cross validation we prepare the whole plates data, and therefore those must be recount
         countTreatedWellsGlobal = 0
         countControlWellsGlobal = 0
@@ -418,7 +432,6 @@ def run():
             trainModelWithPlate(plateNumber)
 
         printDebug("train took[" + str(time.time() - XValidaitonBeginTime) + "]")
-
         validaitonBeginTime = time.time()
         # run model predict on validation and calciulate RMSE and Random RMSE - per plate
         for plateNumber in validationPlates:
@@ -436,6 +449,8 @@ def run():
             + "]countControlWells[" + str(countControlWellsGlobal)
             + "]")
         printToFile()
+
+    plotModel(modelGlobal)
 
     # output total rmse and Random rmse - for all plates in all cross validaitons
     printDebug('RMSEActualGlobal mean[' + str(statistics.mean(RMSEActualGlobal)) + '][' + str(RMSEActualGlobal) + ']')
