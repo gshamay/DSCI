@@ -13,6 +13,7 @@ import statistics
 from tensorflow.keras.utils import plot_model
 # plot_model require pydot and graphviz
 from keras_visualizer import visualizer
+import matplotlib.pyplot as plt
 
 ###################################
 # running configurations
@@ -81,8 +82,10 @@ def printDebug(strLog):
 
 
 def initLogFileNameIfNeeded():
+    global fileDateStringGlobal
     if (_FileName_ == ""):
-        setLogFileName(str(genDateString()))
+        fileDateStringGlobal = genDateString()
+        setLogFileName(str(fileDateStringGlobal))
 
 
 def genDateString():
@@ -91,6 +94,7 @@ def genDateString():
 
 
 _FileName_ = ""
+fileDateStringGlobal = ""
 
 
 def setLogFileName(fileName):
@@ -283,9 +287,26 @@ def preprocessTreatments():
     # [5, 42, 62, 11, 19, 4, 24, 9, 2, 3, 6, 4, 2, 1]
     printDebug("total Treatments[" + str(len(parsedChemicalAnnotationSmiles_usedAtoms)) + "]")
     # '30616'
-
-    # todo: calculate statistics about formulas (hystogram of used muleculas):
+    plotTreatmentsStatisticGraph()
     return usedAtoms
+
+
+def plotTreatmentsStatisticGraph():
+    printDebug("plotTreatmentsStatisticGraph")
+    # hist, bin_edges = np.histogram(list(usedAtomsIndexesHashGlobal.values()))
+    # plt.figure(figsize=[10, 8])
+    # plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
+    # plt.xlim(min(bin_edges), max(bin_edges))
+    # plt.grid(axis='y', alpha=0.75)
+    # plt.xlabel('Value', fontsize=15)
+    # plt.ylabel('Frequency', fontsize=15)
+    # plt.xticks(fontsize=15)
+    # plt.yticks(fontsize=15)
+    # plt.ylabel('Frequency', fontsize=15)
+    # plt.title('Normal Distribution Histogram', fontsize=15)
+    # plt.show()
+    # plt.hist(list(usedAtomsIndexesHashGlobal.values()), bins=len(usedAtomsIndexesHashGlobal.values()))
+    # plt.show()
 
 
 def generateRandomTreatment():
@@ -297,7 +318,7 @@ def generateRandomTreatment():
     for index in range(len(usedAtomsIndexesHashGlobal)):
         usedRatio = usedAtomsNumList[index] / totalTreatments
         value = 0
-        if random.random() <= usedRatio:
+        if random.random() <= usedRatio:  # select randomly if to use the atom or not, according to the known distributionn,
             maxVal = usedAtomsCountMaxGlobal[index]
             value = min((int)((random.random() * maxVal) + 1), maxVal)
 
@@ -311,9 +332,10 @@ def InitializeModelIfNeeeded(normalizedWellTreatment):
     if (modelGlobal == None):
         modelGlobal = Sequential()
         input_dim = len(normalizedWellTreatment.columns)
-        layers = [(int)(input_dim / 2), len(usedAtomsGlobal)]
+        layers = [(int)(input_dim / 2), (int)(input_dim / 4), len(usedAtomsGlobal)]
         modelGlobal.add(Dense(layers[0], input_dim=input_dim, activation='sigmoid'))
         modelGlobal.add(Dense(layers[1], activation='sigmoid'))  # relu
+        modelGlobal.add(Dense(layers[2], activation='sigmoid'))  # relu
         METRICS = [
             tf.keras.metrics.MeanSquaredError(name="mean_squared_error", dtype=None)
         ]
@@ -396,10 +418,10 @@ def preparePlateData(plateNumber):
 
 
 def plotModel(modelGlobal):
-    plot_model(modelGlobal, to_file=startDir + "/ExperimentsResults/" + "model_plot.png",
+    plot_model(modelGlobal, to_file=startDir + "/ExperimentsResults/" + "model_plot" + fileDateStringGlobal + ".png",
                show_shapes=True,
                show_layer_names=True)
-    #visualizer(modelGlobal, filename=startDir + "/ExperimentsResults/" + "model_plot2.png", format='png', view=True)
+    # visualizer(modelGlobal, filename=startDir + "/ExperimentsResults/" + "model_plot2.png", format='png', view=True)
 
 
 ################################
