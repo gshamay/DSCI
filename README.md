@@ -1,5 +1,5 @@
 
-August 2021
+August 2021.
 This code is used to run an experiment as described in the enclosed paper (Data_Science_in_Cell_Imaging_S2_Project.pdf)
 In order to run it you myst use python 3.x and require a few libraries as pandas, numpy and tensorflow to be installed.
 It was developed and run using windows 10 
